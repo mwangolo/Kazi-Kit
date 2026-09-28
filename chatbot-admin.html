@@ -45,6 +45,7 @@ button{font:inherit;font-weight:600;border:0;border-radius:8px;padding:10px 14px
 <script>
 const $=id=>document.getElementById(id),say=t=>$('msg').textContent=t;
 let cfg={};try{cfg=JSON.parse(localStorage.getItem('lf_cfg'))||{}}catch(e){}
+const err=e=>say(e.code==='permission-denied'?'Your account is not approved yet. Message Kazi Kit on WhatsApp to get access.':e.message);
 let db,user,bots=[],cur='';
 function parseFb(t){const o={};for(const m of t.matchAll(/(\w+)\s*:\s*["']([^"']+)["']/g))o[m[1]]=m[2];if(o.apiKey)return o;try{const j=JSON.parse(t);if(j.apiKey)return j}catch(e){}return null}
 $('fbsave').onclick=()=>{const f=parseFb($('fb').value.trim());if(!f)return say('Could not read the config. Paste the whole block.');cfg.fb=f;localStorage.setItem('lf_cfg',JSON.stringify(cfg));location.reload()};
@@ -62,14 +63,14 @@ $('save').onclick=async()=>{
  const name=$('name').value.trim();if(!name)return say('Enter the business name.');
  const id=cur||newId();
  const data={owner:user.uid,name,greeting:$('greet').value.trim(),tone:$('tone').value,whatsapp:$('wa').value.trim(),color:$('color').value,kb:$('kb').value.slice(0,6000),paused:$('paused').checked,upd:Date.now()};
- try{await db.collection('bots').doc(id).set(data);cur=id;say('Saved.');await load()}catch(e){say(e.message)}
+ try{await db.collection('bots').doc(id).set(data);cur=id;say('Saved.');await load()}catch(e){err(e)}
 };
-$('del').onclick=async()=>{if(!cur||!confirm('Delete this bot? Sites using it will lose the chat.'))return;try{await db.collection('bots').doc(cur).delete();cur='';await load()}catch(e){say(e.message)}};
+$('del').onclick=async()=>{if(!cur||!confirm('Delete this bot? Sites using it will lose the chat.'))return;try{await db.collection('bots').doc(cur).delete();cur='';await load()}catch(e){err(e)}};
 $('copy').onclick=()=>{navigator.clipboard?.writeText($('snip').value);say('Copied.')};
 $('test').onclick=()=>{if(!cur)return say('Save the bot first.');const s=document.createElement('script');s.src='/widget.js?'+Date.now();s.dataset.bot=cur;document.body.appendChild(s);say('Chat button appears at the bottom right.')};
 $('cin').onclick=()=>firebase.auth().signInWithPopup(new firebase.auth.GoogleAuthProvider()).catch(e=>say(e.code==='auth/unauthorized-domain'?'Add this domain under Firebase Authentication, Settings, Authorized domains.':e.message));
 $('out').onclick=()=>firebase.auth().signOut();
 if(!cfg.fb||!window.firebase){$('setup').style.display=''}
 else{firebase.initializeApp(cfg.fb);db=firebase.firestore();
- firebase.auth().onAuthStateChanged(u=>{user=u;$('auth').style.display=u?'none':'';$('app').style.display=u?'':'none';if(u)load().catch(e=>say(e.message))})}
+ firebase.auth().onAuthStateChanged(u=>{user=u;$('auth').style.display=u?'none':'';$('app').style.display=u?'':'none';if(u)load().catch(e=>err(e))})}
 </script></body></html>

@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kazi Kit: Your business, working while you sleep.</title>
+<meta name="description" content="Kazi Kit builds your website and an AI chatbot that answers customers, shares your prices and points them to M-Pesa, day and night.">
+<meta property="og:title" content="Kazi Kit: Your business, working while you sleep.">
+<meta property="og:description" content="Websites and AI chatbots for Kenyan businesses.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;800&family=Figtree:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#101828;--teal:#0e6b6b;--sun:#f5b301;--chalk:#f4f7f9;--white:#fff;--mute:#4a5868;--line:#d9e1e7}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;font:17px/1.6 Figtree,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--ink);background:var(--white)}
+h1,h2,h3{font-family:"Bricolage Grotesque",Figtree,system-ui,sans-serif;line-height:1.08;letter-spacing:-.02em;margin:0}
+a{color:inherit}
+:focus-visible{outline:3px solid var(--sun);outline-offset:3px}
+.wrap{max-width:1040px;margin-inline:auto;padding-inline:20px}
+.btn{display:inline-block;font-weight:600;text-decoration:none;border-radius:10px;padding:14px 22px}
+.go{background:var(--sun);color:var(--ink)}
+.ghost{border:2px solid currentColor}
+nav{display:flex;justify-content:space-between;align-items:center;padding:16px 0}
+nav b{font:800 1.25rem "Bricolage Grotesque",sans-serif}
+nav a.login{font-size:.95rem;font-weight:600;text-decoration:none;border-bottom:2px solid var(--sun)}
+
+/* Hero: dark, because the promise is about the night */
+.hero{background:var(--ink);color:var(--white);padding-bottom:64px}
+.hero .wrap{display:grid;gap:36px}
+.hero h1{font-size:clamp(2.4rem,9vw,4.6rem);font-weight:800;margin-top:24px}
+.hero p.lead{font-size:1.15rem;max-width:34em;color:#c9d3dd;margin:18px 0 26px}
+.row{display:flex;gap:12px;flex-wrap:wrap}
+.hero .ghost{color:var(--white)}
+.phone{background:#1b2740;border-radius:22px;padding:18px;max-width:420px;width:100%;border:1px solid #2c3b5c}
+.phone small{display:block;color:#93a4bb;font-size:.8rem;margin-bottom:12px}
+.b{padding:10px 14px;border-radius:14px;margin:8px 0;max-width:88%;font-size:.98rem;line-height:1.45;opacity:0;animation:pop .4s ease forwards}
+.b.c{background:#2c3b5c;color:#e9eef5;border-bottom-left-radius:4px}
+.b.k{background:var(--sun);color:var(--ink);margin-left:auto;border-bottom-right-radius:4px}
+.b:nth-of-type(1){animation-delay:.4s}.b:nth-of-type(2){animation-delay:1.6s}.b:nth-of-type(3){animation-delay:3s}.b:nth-of-type(4){animation-delay:4.2s}
+@keyframes pop{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@media(prefers-reduced-motion:reduce){.b{animation:none;opacity:1}html{scroll-behavior:auto}}
+
+section{padding:64px 0}
+h2{font-size:clamp(1.8rem,6vw,2.7rem);max-width:16em}
+.intro{color:var(--mute);max-width:36em;margin:12px 0 0}
+.grid{display:grid;gap:28px;margin-top:36px}
+.item h3{font-size:1.35rem;margin-bottom:6px}
+.item p{margin:0;color:var(--mute)}
+.item{border-top:3px solid var(--teal);padding-top:14px}
+.item.soon{border-color:var(--line)}
+.tag{display:inline-block;font-size:.8rem;font-weight:600;background:var(--chalk);border-radius:6px;padding:2px 8px;margin-bottom:8px;color:var(--teal)}
+.soon .tag{color:var(--mute)}
+.alt{background:var(--chalk)}
+ol{list-style:none;counter-reset:s;padding:0;margin:36px 0 0;display:grid;gap:22px}
+ol li{counter-increment:s;padding-left:54px;position:relative}
+ol li::before{content:counter(s);position:absolute;left:0;top:-2px;width:38px;height:38px;border-radius:50%;background:var(--teal);color:#fff;font:800 1.1rem "Bricolage Grotesque",sans-serif;display:grid;place-items:center}
+ol b{display:block;font-size:1.1rem}
+ol span{color:var(--mute)}
+.who{display:flex;flex-wrap:wrap;gap:10px;margin-top:26px}
+.who span{border:2px solid var(--line);border-radius:999px;padding:6px 16px;font-weight:600}
+details{border-top:1px solid var(--line);padding:16px 0}
+details:last-of-type{border-bottom:1px solid var(--line)}
+summary{font-weight:600;cursor:pointer;font-size:1.05rem}
+details p{margin:10px 0 0;color:var(--mute)}
+.cta{background:var(--teal);color:#fff;text-align:center}
+.cta h2{margin-inline:auto}
+.cta p{max-width:32em;margin:14px auto 26px;color:#d5ecec}
+.cta .row{justify-content:center}
+footer{padding:26px 0;color:var(--mute);font-size:.92rem}
+footer .wrap{display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px}
+
+@media(min-width:760px){
+ .hero .wrap{grid-template-columns:1.15fr .85fr;align-items:center}
+ .grid{grid-template-columns:repeat(3,1fr)}
+ ol{grid-template-columns:repeat(3,1fr)}
+}
+</style>
+</head>
+<body>
+
+<header class="hero">
+<div class="wrap" style="display:block">
+ <nav><b>Kazi Kit</b><a class="login" href="/chatbot-admin.html">Client login</a></nav>
+</div>
+<div class="wrap">
+ <div>
+  <h1>Your business, working while you sleep.</h1>
+  <p class="lead">Kazi Kit builds your website and an AI chatbot that answers customers, shares your prices and points them to your M-Pesa, day and night.</p>
+  <div class="row">
+   <a class="btn go" href="https://wa.me/254719477081?text=Hi%20Kazi%20Kit%2C%20I%27d%20like%20a%20free%20chatbot%20trial." target="_blank" rel="noopener">Get a free chatbot trial</a>
+   <a class="btn ghost" href="#how">See how it works</a>
+  </div>
+ </div>
+ <div class="phone" role="img" aria-label="Example chat: a customer asks a salon about prices at 11:47 pm and the chatbot replies instantly.">
+  <small>Example chat for a salon, 11:47 pm</small>
+  <div class="b c">Hi, how much is braids with a wash? Are you open tomorrow?</div>
+  <div class="b k">Hello! Braids with a wash start from KES 1,800. We open at 8am tomorrow.</div>
+  <div class="b c">Can I book 10am?</div>
+  <div class="b k">Yes! Send the KES 500 deposit to our till and we'll hold your slot. Want the till number?</div>
+ </div>
+</div>
+</header>
+
+<section>
+<div class="wrap">
+ <h2>Customers ask at night. Now someone answers.</h2>
+ <p class="intro">Most small businesses lose sales to unanswered messages and no online presence. Kazi Kit fixes both, without you learning any technology.</p>
+ <div class="grid">
+  <div class="item"><span class="tag">Available now</span><h3>A website that sells</h3><p>A simple, fast page with your services, prices, location, a WhatsApp button and M-Pesa details.</p></div>
+  <div class="item"><span class="tag">Available now</span><h3>An AI chatbot on your site</h3><p>Answers from your own information, never makes up prices, and hands over to you on WhatsApp when it isn't sure.</p></div>
+  <div class="item soon"><span class="tag">Coming next</span><h3>Follow-ups that run themselves</h3><p>Booking confirmations, reminders and review requests sent automatically after each customer.</p></div>
+ </div>
+</div>
+</section>
+
+<section class="alt" id="how">
+<div class="wrap">
+ <h2>Live in three steps</h2>
+ <ol>
+  <li><b>Tell us about your business</b><span>Services, prices, hours, location and how you get paid.</span></li>
+  <li><b>We set up your chatbot</b><span>Trained only on your information and tested before it goes live.</span></li>
+  <li><b>Paste one line on your site</b><span>Or we do it for you. A chat button appears and starts answering.</span></li>
+ </ol>
+ <div class="who" aria-label="Businesses we help"><span>Salons</span><span>Restaurants</span><span>Guest houses</span><span>Schools</span><span>Clinics</span><span>Garages</span><span>Shops</span></div>
+</div>
+</section>
+
+<section>
+<div class="wrap">
+ <h2>Questions owners ask</h2>
+ <div style="margin-top:26px">
+  <details><summary>Do I need any technical knowledge?</summary><p>No. You send us your business details and we set everything up. You can update the information any time.</p></details>
+  <details><summary>What if the chatbot doesn't know an answer?</summary><p>It says it isn't sure and offers to connect the customer with you on WhatsApp. It is told never to invent prices, hours or promises.</p></details>
+  <details><summary>Can I switch it off?</summary><p>Yes. A bot can be paused instantly and turned back on when you are ready.</p></details>
+  <details><summary>How much does it cost?</summary><p>It depends on what you need. Message us and we will send a clear quote. Your first chatbot trial is free.</p></details>
+ </div>
+</div>
+</section>
+
+<section class="cta">
+<div class="wrap">
+ <h2>Try it on your business</h2>
+ <p>Tell us what you sell and we will build a working chatbot for you to test, free.</p>
+ <div class="row">
+  <a class="btn go" href="https://wa.me/254719477081?text=Hi%20Kazi%20Kit%2C%20I%27d%20like%20a%20free%20chatbot%20trial." target="_blank" rel="noopener">Message us on WhatsApp</a>
+  <a class="btn ghost" href="/chatbot-admin.html" style="color:#fff">Client login</a>
+ </div>
+</div>
+</section>
+
+<footer><div class="wrap"><span>Kazi Kit, Nairobi, Kenya</span><span>Your business, working while you sleep.</span></div></footer>
+
+<!-- Live demo: replace YOUR_BOT_ID with the ID of a demo bot you created in the client login. -->
+<script src="/widget.js" data-bot="YOUR_BOT_ID" defer></script>
+</body>
+</html>

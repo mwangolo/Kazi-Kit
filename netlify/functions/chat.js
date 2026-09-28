@@ -2,7 +2,7 @@
 // Env vars needed: GROQ_API_KEY, FIREBASE_PROJECT_ID
 const H={'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'Content-Type','Content-Type':'application/json'};
 const out=(c,o)=>({statusCode:c,headers:H,body:JSON.stringify(o)});
-const hits=new Map(), cache=new Map();
+const hits=new Map(), leadHits=new Map(), cache=new Map();
 const okId=id=>/^[A-Za-z0-9]{10,40}$/.test(id);
 
 async function getBot(id){
@@ -37,6 +37,21 @@ exports.handler=async ev=>{
   let b;try{b=JSON.parse(ev.body||'{}')}catch(e){return out(400,{error:'Bad request'})}
   const id=String(b.botId||'');
   if(!okId(id))return out(400,{error:'Unknown bot'});
+  if(b.action==='lead'){ // visitor leaves their details
+    if(b.website)return out(200,{ok:true}); // honeypot: bots fill this in
+    const lh=(leadHits.get(ip)||[]).filter(t=>now-t<3600000);
+    if(lh.length>=5)return out(429,{error:'Too many requests. Please try again later.'});
+    const name=String(b.name||'').trim().slice(0,80), phone=String(b.phone||'').replace(/[^\d+]/g,'').slice(0,20), note=String(b.note||'').trim().slice(0,300);
+    if(!name||phone.replace(/\D/g,'').length<9)return out(400,{error:'Enter your name and a valid phone number.'});
+    const lb=await getBot(id);
+    if(!lb||lb.paused)return out(404,{error:'Unavailable'});
+    const fields={name:{stringValue:name},phone:{stringValue:phone},created:{timestampValue:new Date().toISOString()}};
+    if(note)fields.note={stringValue:note};
+    const r=await fetch(`https://firestore.googleapis.com/v1/projects/${process.env.FIREBASE_PROJECT_ID}/databases/(default)/documents/bots/${id}/leads`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({fields})});
+    if(!r.ok)return out(502,{error:'Could not save your details. Please try again.'});
+    lh.push(now);leadHits.set(ip,lh);
+    return out(200,{ok:true});
+  }
   const msgs=(Array.isArray(b.messages)?b.messages:[]).slice(-10).map(m=>({role:m.role==='assistant'?'assistant':'user',content:String(m.content||'').slice(0,1000)}));
   if(!msgs.length||msgs[msgs.length-1].role!=='user')return out(400,{error:'No message'});
 

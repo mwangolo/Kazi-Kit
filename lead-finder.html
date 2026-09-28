@@ -14,7 +14,7 @@ p.sub{margin:0 0 16px;color:var(--mute)}
 details,.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-bottom:12px}
 summary{cursor:pointer;font-weight:600}
 label{display:block;font-size:.85rem;color:var(--mute);margin:10px 0 3px}
-input,textarea{width:100%;font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px}
+input,textarea,select{width:100%;font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px}
 textarea{min-height:150px;resize:vertical}
 button,a.btn{font:inherit;font-weight:600;border:0;border-radius:8px;padding:10px 14px;background:var(--go);color:#fff;text-decoration:none;cursor:pointer;display:inline-block}
 button.alt,a.alt{background:transparent;color:var(--ink);border:1px solid var(--line)}
@@ -43,64 +43,149 @@ button:disabled{opacity:.5}
 <input id="me" placeholder="Stephen from Mwangolo Web Studio">
 <label for="svc">What you sell, in one line</label>
 <input id="svc" placeholder="Websites, booking pages and M-Pesa payments for small businesses">
+<label for="fb">Firebase web config (paste from Firebase console, optional)</label>
+<textarea id="fb" style="min-height:90px" placeholder='const firebaseConfig = { apiKey: "...", authDomain: "...", projectId: "...", appId: "..." };'></textarea>
 <div class="row"><button id="save">Save</button></div>
 </details>
 
 <div class="card">
-<div class="two">
-<div><label for="ind">Industry</label><input id="ind" placeholder="salons"></div>
-<div><label for="area">Area</label><input id="area" placeholder="Westlands, Nairobi"></div>
-</div>
+<label for="preset">Industry preset (sets the search and the offers)</label>
+<select id="preset"><option value="">Custom</option></select>
+<label for="ind">Industry</label>
+<input id="ind" placeholder="salons">
+<label for="area">Areas (one per line, add the city)</label>
+<textarea id="area" style="min-height:90px" placeholder="Westlands, Nairobi&#10;Kilimani, Nairobi&#10;Ngong Road, Nairobi"></textarea>
+<label><input type="checkbox" id="srcG" checked style="width:auto"> Google Maps (ratings, reviews, up to 60 per area)</label>
+<label><input type="checkbox" id="srcO" checked style="width:auto"> OpenStreetMap (free, less complete)</label>
 <div class="row"><button id="go">Find leads</button><button id="clr" class="alt">Clear list</button></div>
 <div id="msg" role="status"></div>
 </div>
 
+<div class="card" id="cloud"><span id="cst" class="meta"></span>
+<div class="row"><button id="cin">Sign in with Google</button><button id="cout" class="alt">Sign out</button></div></div>
+<div class="card" id="stats"></div>
+<div class="row" style="margin:0 0 12px"><select id="flt" style="width:auto" aria-label="Filter"><option value="">All leads</option><option value="new">New</option><option value="due">Follow-up due</option><option value="replied">Replied</option><option value="paid">Paid</option></select><button id="csv" class="alt">Export CSV</button></div>
 <div id="list"></div>
 
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script>
 const $=id=>document.getElementById(id);
 const L=(k,d)=>{try{return JSON.parse(localStorage.getItem(k))??d}catch(e){return d}};
-const S=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}};
+const S=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}if(k==='lf_leads')schedSync()};
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let cfg=L('lf_cfg',{}), leads=L('lf_leads',[]);
 ['maps','groq','me','svc'].forEach(k=>$(k).value=cfg[k]||'');
 if(!cfg.maps||!cfg.groq)$('setup').open=true;
-$('save').onclick=()=>{['maps','groq','me','svc'].forEach(k=>cfg[k]=$(k).value.trim());S('lf_cfg',cfg);say('Saved.');$('setup').open=false};
-$('clr').onclick=()=>{leads=[];S('lf_leads',leads);render()};
+$('fb').value=cfg.fb?JSON.stringify(cfg.fb):'';
+function parseFb(t){const o={};for(const m of t.matchAll(/(\w+)\s*:\s*["']([^"']+)["']/g))o[m[1]]=m[2];
+ if(o.apiKey)return o;try{const j=JSON.parse(t);if(j.apiKey)return j}catch(e){}return null}
+$('save').onclick=()=>{
+ const t=$('fb').value.trim(),nf=t?parseFb(t):null;
+ if(t&&!nf)return say('Could not read the Firebase config. Paste the whole block from the console.');
+ const changed=JSON.stringify(nf)!==JSON.stringify(cfg.fb||null);
+ ['maps','groq','me','svc'].forEach(k=>cfg[k]=$(k).value.trim());cfg.fb=nf;
+ S('lf_cfg',cfg);say('Saved.');$('setup').open=false;
+ if(changed)location.reload();
+};
+$('clr').onclick=()=>{if(!confirm('Delete all leads and tracking data?'))return;leads=[];S('lf_leads',leads);render()};
 function say(t){$('msg').textContent=t}
 
 // Problem detection: each rule = a visible weakness plus the offer that fixes it
+let PR={};
+const PRESETS={
+salon:{n:'Salon or barber',q:'salons',a:'Salon clients want to book a slot and pay a deposit without long WhatsApp back-and-forth, and no-shows cost the owner money.',o:{nosite:'a booking page with services, prices, a WhatsApp button and an M-Pesa deposit',social:'a booking page they own, with services, prices and an M-Pesa deposit',reviews:'automatic WhatsApp review requests after each appointment',rating:'a feedback message after each visit so issues are caught before they become reviews'}},
+restaurant:{n:'Restaurant or cafe',q:'restaurants',a:'Diners check menus and location on Google before going, and many order by WhatsApp.',o:{nosite:'a menu page with photos, location and a WhatsApp order button',social:'a menu and ordering page they own instead of relying on a social page',reviews:'a table QR code that asks happy diners for a Google review',rating:'a feedback QR code so unhappy diners tell the owner first'}},
+hotel:{n:'Hotel or guest house',q:'guest houses',a:'Guests compare rooms online and booking directly avoids commission to booking sites.',o:{nosite:'a direct-booking site with rooms, photos and an M-Pesa deposit',social:'a direct-booking site that avoids booking-site commission',reviews:'a post-stay WhatsApp message asking for a review',rating:'a guest feedback follow-up to lift the rating'}},
+school:{n:'School or tuition',q:'schools',a:'Parents look for admissions, fees and contacts online and want quick answers.',o:{nosite:'a school website with admissions info, fees and an enquiry form',social:'a school website with admissions info and an enquiry form',reviews:'a parent testimonial page and review request',rating:'a parent feedback channel'}},
+clinic:{n:'Clinic or pharmacy',q:'clinics',a:'Patients look for opening hours, services and how to book.',o:{nosite:'a page with services, hours, location and a booking or enquiry button',social:'a page they own with services, hours and a booking button',reviews:'a patient review request after each visit',rating:'a patient feedback follow-up'}},
+garage:{n:'Garage or car services',q:'garages',a:'Car owners look for trusted mechanics and want quotes and bookings on WhatsApp.',o:{nosite:'a services page with a WhatsApp quote button and booking form',social:'a services and booking page they own',reviews:'a review request sent when a job is done',rating:'a follow-up message after each job to fix complaints early'}},
+gym:{n:'Gym or fitness',q:'gyms',a:'People compare gyms online and want to see prices and join quickly.',o:{nosite:'a page with membership prices, class times and M-Pesa sign-up',social:'a membership page they own with M-Pesa sign-up',reviews:'a review request for new members after week one',rating:'a member feedback message to improve retention'}},
+shop:{n:'Shop or boutique',q:'boutiques',a:'Shoppers want to see products and order on WhatsApp with M-Pesa.',o:{nosite:'an online catalogue with WhatsApp ordering and M-Pesa checkout',social:'a catalogue site they own with M-Pesa checkout',reviews:'a review request after each delivery',rating:'a delivery follow-up message to fix problems early'}},
+estate:{n:'Real estate or landlord',q:'real estate agents',a:'Tenants and buyers browse listings online first.',o:{nosite:'a listings site with photos, prices and a WhatsApp enquiry button',social:'a listings site they own, not just social posts',reviews:'a client testimonial page and review request',rating:'a client follow-up process'}}
+};
 function detect(p){
- const out=[],w=p.websiteUri||'',r=p.rating,n=p.userRatingCount||0;
- if(!w)out.push({t:'No website',o:'a simple website with a WhatsApp button and M-Pesa payment',w:5});
- else if(/facebook\.com|instagram\.com|linktr\.ee|wa\.me|business\.site/i.test(w))out.push({t:'Only a social page or free site',o:'a proper website they own, so customers can find and book them on Google',w:4});
- else if(w.startsWith('http:'))out.push({t:'Website is not secure (no HTTPS)',o:'a secure, faster website (browsers warn visitors away from insecure sites)',w:3});
- if(r&&r<4)out.push({t:'Rating '+r+' on Google',o:'a review-reply and feedback follow-up system to lift their rating',w:3});
- if(n<15)out.push({t:'Only '+n+' Google reviews',o:'an automatic WhatsApp review-request after each customer visit',w:2});
- if(!p.internationalPhoneNumber)out.push({t:'No phone number listed',o:'a contact and booking page so customers can reach them',w:2});
+ const out=[],w=p.websiteUri||'',r=p.rating,n=p.userRatingCount||0,g=p.src!=='osm';
+ const o=(c,d)=>PR.o?.[c]||d;
+ if(!w)out.push({t:'No website',o:o('nosite','a simple website with a WhatsApp button and M-Pesa payment'),w:5});
+ else if(/facebook\.com|instagram\.com|linktr\.ee|wa\.me|business\.site/i.test(w))out.push({t:'Only a social page or free site',o:o('social','a proper website they own, so customers can find and book them on Google'),w:4});
+ else if(w.startsWith('http:'))out.push({t:'Website is not secure (no HTTPS)',o:o('http','a secure, faster website (browsers warn visitors away from insecure sites)'),w:3});
+ if(g&&r&&r<4)out.push({t:'Rating '+r+' on Google',o:o('rating','a review-reply and feedback follow-up system to lift their rating'),w:3});
+ if(g&&n<15)out.push({t:'Only '+n+' Google reviews',o:o('reviews','an automatic WhatsApp review-request after each customer visit'),w:2});
+ if(!p.internationalPhoneNumber)out.push({t:'No phone number listed',o:o('nophone','a contact and booking page so customers can reach them'),w:2});
  return out;
 }
+Object.entries(PRESETS).forEach(([k,v])=>{const e=document.createElement('option');e.value=k;e.textContent=v.n;$('preset').appendChild(e)});
+$('preset').onchange=e=>{const v=PRESETS[e.target.value];if(v)$('ind').value=v.q};
 const score=l=>l.problems.reduce((a,x)=>a+x.w,0);
 
-$('go').onclick=async()=>{
- if(!cfg.maps)return say('Add your Google Maps key in Setup.');
- const ind=$('ind').value.trim(),area=$('area').value.trim();
- if(!ind||!area)return say('Enter an industry and an area.');
- say('Searching...');$('go').disabled=true;
- try{
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const key=l=>{const p=(l.phone||'').replace(/\D/g,'').slice(-9);return p.length>=9?'p'+p:'n'+l.name.toLowerCase().replace(/[^a-z0-9]/g,'')};
+const FIELDS='places.id,places.displayName,places.formattedAddress,places.websiteUri,places.internationalPhoneNumber,places.rating,places.userRatingCount,places.googleMapsUri,places.businessStatus,nextPageToken';
+
+async function gSearch(q){
+ const out=[];let tok='';
+ for(let i=0;i<3;i++){
+  const body={textQuery:q,pageSize:20};if(tok)body.pageToken=tok;
   const res=await fetch('https://places.googleapis.com/v1/places:searchText',{method:'POST',
-   headers:{'Content-Type':'application/json','X-Goog-Api-Key':cfg.maps,
-   'X-Goog-FieldMask':'places.id,places.displayName,places.formattedAddress,places.websiteUri,places.internationalPhoneNumber,places.rating,places.userRatingCount,places.googleMapsUri,places.businessStatus'},
-   body:JSON.stringify({textQuery:ind+' in '+area,pageSize:20})});
+   headers:{'Content-Type':'application/json','X-Goog-Api-Key':cfg.maps,'X-Goog-FieldMask':FIELDS},body:JSON.stringify(body)});
   const d=await res.json();
-  if(!res.ok)throw new Error(d.error?.message||'Search failed');
-  const seen=new Set(leads.map(l=>l.id));
-  const fresh=(d.places||[]).filter(p=>p.businessStatus!=='CLOSED_PERMANENTLY'&&!seen.has(p.id)).map(p=>({
-   id:p.id,name:p.displayName?.text||'Unnamed',addr:p.formattedAddress||'',phone:p.internationalPhoneNumber||'',
-   site:p.websiteUri||'',rating:p.rating,count:p.userRatingCount||0,map:p.googleMapsUri,industry:ind,problems:detect(p),draft:'',status:''}));
-  leads=[...fresh,...leads].sort((a,b)=>score(b)-score(a));S('lf_leads',leads);render();
-  say(fresh.length+' new leads, best problems first.');
- }catch(e){say(e.message)}
+  if(!res.ok)throw new Error(d.error?.message||'Google search failed');
+  out.push(...(d.places||[]));tok=d.nextPageToken;if(!tok)break;
+  await sleep(1500);
+ }
+ return out.filter(p=>p.businessStatus!=='CLOSED_PERMANENTLY').map(p=>({
+  id:p.id,src:'google',name:p.displayName?.text||'Unnamed',addr:p.formattedAddress||'',phone:p.internationalPhoneNumber||'',
+  site:p.websiteUri||'',rating:p.rating,count:p.userRatingCount||0,map:p.googleMapsUri,
+  problems:detect({...p,src:'google'})}));
+}
+
+const TAGS={salon:['shop=hairdresser','shop=beauty'],barber:['shop=hairdresser'],hair:['shop=hairdresser'],beauty:['shop=beauty'],restaurant:['amenity=restaurant','amenity=fast_food'],cafe:['amenity=cafe'],hotel:['tourism=hotel','tourism=guest_house'],pharmac:['amenity=pharmacy'],school:['amenity=school','amenity=kindergarten'],gym:['leisure=fitness_centre'],clinic:['amenity=clinic','amenity=doctors'],dent:['amenity=dentist'],garage:['shop=car_repair'],car:['shop=car_repair','shop=car'],boutique:['shop=clothes'],cloth:['shop=clothes'],supermarket:['shop=supermarket'],shop:['shop'],church:['amenity=place_of_worship'],bar:['amenity=bar','amenity=pub'],bank:['amenity=bank'],lawyer:['office=lawyer'],estate:['office=estate_agent']};
+function osmFilters(ind){
+ const k=Object.keys(TAGS).find(k=>ind.toLowerCase().includes(k));
+ if(k)return TAGS[k].map(t=>{const [a,b]=t.split('=');return b?`["${a}"="${b}"]`:`["${a}"]`});
+ return [`["name"~"${ind.replace(/[^a-zA-Z0-9 ]/g,'')}",i]`];
+}
+async function oSearch(ind,area){
+ await sleep(1100);
+ const g=await (await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&q='+encodeURIComponent(area))).json();
+ if(!g[0])throw new Error('OpenStreetMap could not find "'+area+'"');
+ const [s,n,w,e]=g[0].boundingbox,bb=`${s},${w},${n},${e}`;
+ const q='[out:json][timeout:25];('+osmFilters(ind).map(f=>`nwr${f}["name"](${bb});`).join('')+');out center tags 150;';
+ const res=await fetch('https://overpass-api.de/api/interpreter',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'data='+encodeURIComponent(q)});
+ if(!res.ok)throw new Error('OpenStreetMap search failed (try again shortly)');
+ const d=await res.json();
+ return (d.elements||[]).map(el=>{const t=el.tags||{};
+  const p={websiteUri:t.website||t['contact:website']||'',internationalPhoneNumber:t.phone||t['contact:phone']||t['contact:mobile']||'',src:'osm'};
+  return{id:'osm'+el.type+el.id,src:'osm',name:t.name,addr:[t['addr:housenumber'],t['addr:street'],t['addr:suburb']||area].filter(Boolean).join(' '),
+   phone:p.internationalPhoneNumber,site:p.websiteUri,rating:0,count:0,map:`https://www.openstreetmap.org/${el.type}/${el.id}`,problems:detect(p)}});
+}
+
+$('go').onclick=async()=>{
+ const ind=$('ind').value.trim(),areas=$('area').value.split(/[\n;]+/).map(x=>x.trim()).filter(Boolean);
+ const useG=$('srcG').checked,useO=$('srcO').checked;
+ if(!ind||!areas.length)return say('Enter an industry and at least one area.');
+ if(!useG&&!useO)return say('Pick at least one source.');
+ if(useG&&!cfg.maps)return say('Add your Google Maps key in Setup, or untick Google Maps.');
+ PR=PRESETS[$('preset').value]||{};
+ $('go').disabled=true;
+ const seen=new Set(leads.map(key));let added=0,dup=0;const errs=[];
+ for(let i=0;i<areas.length;i++){
+  const a=areas[i];
+  for(const [on,src,fn] of [[useG,'Google',()=>gSearch(ind+' in '+a)],[useO,'OpenStreetMap',()=>oSearch(ind,a)]]){
+   if(!on)continue;
+   say(`Area ${i+1} of ${areas.length}: ${a} (${src})... ${added} new so far`);
+   try{
+    for(const l of await fn()){
+     const k=key(l);if(seen.has(k)){dup++;continue}
+     seen.add(k);l.industry=ind;l.angle=PR.a||'';l.draft='';l.status='';leads.push(l);added++;
+    }
+   }catch(e){errs.push(a+' ('+src+'): '+e.message)}
+  }
+  leads.sort((x,y)=>score(y)-score(x));S('lf_leads',leads);render();
+ }
+ say(`${added} new leads, ${dup} duplicates skipped.`+(errs.length?' Problems: '+errs.join('; '):''));
  $('go').disabled=false;
 };
 
@@ -118,43 +203,132 @@ async function draft(i){
     {role:'user',content:`Sender: ${cfg.me||'a local web freelancer'}. Sells: ${cfg.svc||'websites and business tools'}.
 Business: ${l.name} (${l.industry}), ${l.addr}.
 Observed problem: ${top.t}.
-Offer: ${top.o}.`}]})});
+Offer: ${top.o}.${l.angle?'\nIndustry context: '+l.angle:''}`}]})});
   const d=await res.json();
   if(!res.ok)throw new Error(d.error?.message||'Groq failed');
   l.draft=d.choices[0].message.content.trim();S('lf_leads',leads);render();say('Draft ready. Edit it, then send.');
  }catch(e){say(e.message)}
 }
 
+const STAGES=[['','New'],['contacted','Contacted'],['replied','Replied'],['preview','Preview sent'],['paid','Paid'],['lost','Lost or STOP']];
+const REPLIED=['replied','preview','paid'];
+const isDue=l=>l.status==='contacted'&&l.sentAt&&Date.now()-l.sentAt>5*864e5;
+const codeOf=l=>(l.problems[0]?.t||'No clear problem').replace(/\d+(\.\d+)?/g,'#');
 function wa(l){
  let n=(l.phone||'').replace(/\D/g,'');
  if(n.startsWith('0'))n='254'+n.slice(1);
  return n?'https://wa.me/'+n+'?text='+encodeURIComponent(l.draft):'';
 }
-
+function tally(rows,fn){
+ const m={};
+ rows.forEach(l=>{const k=fn(l),o=m[k]||(m[k]={s:0,r:0,p:0});o.s++;if(REPLIED.includes(l.status))o.r++;if(l.status==='paid')o.p++});
+ return Object.entries(m).sort((a,b)=>b[1].s-a[1].s).slice(0,5).map(([k,o])=>`<div class="meta">${esc(k)}: ${o.s} sent, ${o.r} replies, ${o.p} paid</div>`).join('');
+}
+function renderStats(){
+ const sent=leads.filter(l=>l.status),rep=sent.filter(l=>REPLIED.includes(l.status)),paid=sent.filter(l=>l.status==='paid');
+ const rev=paid.reduce((a,l)=>a+(+l.amount||0),0),due=leads.filter(isDue).length;
+ const pc=(a,b)=>b?Math.round(a/b*100)+'%':'0%';
+ $('stats').innerHTML=`<div class="name">Results</div><div class="meta">${leads.length} leads · ${sent.length} contacted · ${rep.length} replied (${pc(rep.length,sent.length)}) · ${paid.length} paid (${pc(paid.length,rep.length)} of replies) · KES ${rev.toLocaleString()}${due?' · <b>'+due+' follow-ups due</b>':''}</div>`
+ +(sent.length>=20&&rep.length/sent.length<.05?'<div class="chip">Reply rate is under 5%. Fix the pitch or the niche before sending more.</div>':'')
+ +(sent.length?'<div class="meta" style="margin-top:8px">By problem</div>'+tally(sent,codeOf)+'<div class="meta" style="margin-top:8px">By industry</div>'+tally(sent,l=>l.industry||'unknown'):'');
+}
 function render(){
- $('list').innerHTML=leads.map((l,i)=>`<div class="card ${l.status?'done':''}" data-i="${i}">
+ const f=$('flt').value;
+ $('list').innerHTML=leads.map((l,i)=>[l,i]).filter(([l])=>!f||(f==='new'?!l.status:f==='due'?isDue(l):l.status===f)).map(([l,i])=>`<div class="card ${l.status==='lost'?'done':''}" data-i="${i}">
  <div class="name">${esc(l.name)}</div>
- <div class="meta">${esc(l.addr)}${l.phone?'<br>'+esc(l.phone):''}<br>${l.rating?'★ '+l.rating+' ('+l.count+')':'No rating'}${l.site?' · <a href="'+esc(l.site)+'" target="_blank" rel="noopener">site</a>':''} · <a href="${esc(l.map)}" target="_blank" rel="noopener">map</a></div>
- <div>${l.problems.length?l.problems.map(p=>'<span class="chip">'+esc(p.t)+'</span>').join(''):'<span class="meta">No clear problem found</span>'}</div>
- ${l.status?'<div class="meta">Marked '+esc(l.status)+'</div>':''}
+ <div class="meta">${esc(l.addr)}${l.phone?'<br>'+esc(l.phone):''}<br>${l.src==='osm'?'OpenStreetMap data, may be outdated':l.rating?'★ '+l.rating+' ('+l.count+')':'No rating'}${l.site?' · <a href="'+esc(l.site)+'" target="_blank" rel="noopener">site</a>':''} · <a href="${esc(l.map)}" target="_blank" rel="noopener">map</a></div>
+ <div>${l.problems.length?l.problems.map(p=>'<span class="chip">'+esc(p.t)+'</span>').join(''):'<span class="meta">No clear problem found</span>'}${isDue(l)?'<span class="chip">Follow-up due</span>':''}</div>
+ ${l.status==='paid'&&l.amount?'<div class="meta">Paid KES '+(+l.amount).toLocaleString()+'</div>':''}
  ${l.draft?`<label for="d${i}">Pitch (edit before sending)</label><textarea id="d${i}" data-d="${i}">${esc(l.draft)}</textarea>`:''}
  <div class="row">
   <button data-a="draft">${l.draft?'Redraft':'Draft pitch'}</button>
   ${l.draft&&wa(l)?`<a class="btn alt" data-a="wa" href="${wa(l)}" target="_blank" rel="noopener">Open WhatsApp</a>`:''}
   ${l.draft?'<button class="alt" data-a="copy">Copy</button>':''}
-  <button class="alt" data-a="done">${l.status?'Undo':'Mark contacted'}</button>
- </div></div>`).join('')||'<p class="meta">No leads yet. Search above.</p>';
+  <select data-s aria-label="Stage" style="width:auto">${STAGES.map(([v,n])=>`<option value="${v}" ${l.status===v?'selected':''}>${n}</option>`).join('')}</select>
+ </div></div>`).join('')||'<p class="meta">No leads here.</p>';
+ renderStats();
 }
+$('flt').onchange=render;
 $('list').addEventListener('input',e=>{const i=e.target.dataset.d;if(i!==undefined){leads[i].draft=e.target.value;S('lf_leads',leads)}});
+$('list').addEventListener('change',e=>{
+ if(e.target.dataset.s===undefined)return;
+ const l=leads[+e.target.closest('.card').dataset.i],v=e.target.value;
+ l.status=v;if(v&&!l.sentAt)l.sentAt=Date.now();
+ if(v==='paid'){const a=prompt('Amount paid (KES)?',l.amount||'');l.amount=a?+a.replace(/[^\d.]/g,''):0}
+ S('lf_leads',leads);render();
+});
 $('list').addEventListener('click',e=>{
  const a=e.target.dataset.a,c=e.target.closest('.card');if(!a||!c)return;
  const i=+c.dataset.i;
  if(a==='draft')draft(i);
  if(a==='copy'){navigator.clipboard?.writeText(leads[i].draft);say('Copied.')}
- if(a==='done'){leads[i].status=leads[i].status?'':'contacted';S('lf_leads',leads);render()}
- if(a==='wa'){leads[i].status=leads[i].status||'contacted';S('lf_leads',leads);setTimeout(render,300)}
+ if(a==='wa'){if(!leads[i].status){leads[i].status='contacted';leads[i].sentAt=Date.now()}S('lf_leads',leads);setTimeout(render,300)}
 });
+$('csv').onclick=()=>{
+ const q=v=>'"'+String(v??'').replace(/"/g,'""')+'"';
+ const rows=[['Name','Industry','Phone','Top problem','Stage','Sent','Amount KES']].concat(leads.map(l=>[l.name,l.industry,l.phone,l.problems[0]?.t||'',l.status||'new',l.sentAt?new Date(l.sentAt).toISOString().slice(0,10):'',l.amount||'']));
+ const a=document.createElement('a');
+ a.href=URL.createObjectURL(new Blob([rows.map(r=>r.map(q).join(',')).join('\n')],{type:'text/csv'}));
+ a.download='leads.csv';a.click();
+};
 render();
+
+// ---------- Cloud sync (Firestore) ----------
+let db=null,user=null,cloudReady=false,synced={},syncTimer=null;
+const dk=l=>String(l.id).replace(/\//g,'_');
+const sig=l=>JSON.stringify({...l,upd:0});
+const cst=t=>{$('cst').textContent=t};
+function cloudUI(){
+ const on=!!(cfg.fb&&window.firebase);
+ $('cin').style.display=on&&!user?'':'none';
+ $('cout').style.display=user?'':'none';
+ if(!cfg.fb)cst('Cloud sync is off. Add your Firebase config in Setup to sync across devices.');
+ else if(!window.firebase)cst('Cloud sync unavailable (Firebase failed to load, check your connection).');
+ else if(!user)cst('Sign in to sync your leads across devices.');
+}
+function schedSync(){if(!cloudReady)return;clearTimeout(syncTimer);syncTimer=setTimeout(pushDiff,800)}
+async function pushDiff(){
+ if(!cloudReady||!user)return;
+ const col=db.collection('users').doc(user.uid).collection('leads'),ops=[],cur={},now=Date.now();
+ leads.forEach(l=>{const k=dk(l);cur[k]=1;if(synced[k]!==sig(l)){l.upd=now;ops.push(['set',k,JSON.parse(JSON.stringify(l)),sig(l)])}});
+ Object.keys(synced).forEach(k=>{if(!cur[k])ops.push(['del',k])});
+ if(!ops.length)return;
+ try{
+  for(let i=0;i<ops.length;i+=400){
+   const b=db.batch(),part=ops.slice(i,i+400);
+   part.forEach(o=>o[0]==='set'?b.set(col.doc(o[1]),o[2]):b.delete(col.doc(o[1])));
+   await b.commit();
+   part.forEach(o=>o[0]==='set'?synced[o[1]]=o[3]:delete synced[o[1]]);
+  }
+  cst('Synced as '+user.email+'.');
+ }catch(e){cst('Sync failed: '+e.message+'. Retrying...');clearTimeout(syncTimer);syncTimer=setTimeout(pushDiff,10000)}
+}
+async function pull(){
+ cst('Syncing...');
+ try{
+  const snap=await db.collection('users').doc(user.uid).collection('leads').get();
+  const cloud={};snap.forEach(d=>cloud[d.id]=d.data());
+  const local={};leads.forEach(l=>local[dk(l)]=l);
+  synced={};const merged=[];
+  Object.keys(cloud).forEach(k=>{const c=cloud[k],l=local[k];synced[k]=sig(c);merged.push(!l||(c.upd||0)>=(l.upd||0)?c:l)});
+  leads.forEach(l=>{if(!cloud[dk(l)])merged.push(l)});
+  leads=merged.sort((a,b)=>score(b)-score(a));
+  cloudReady=true;S('lf_leads',leads);render();
+  cst('Synced as '+user.email+' ('+leads.length+' leads).');
+ }catch(e){cst('Could not load from cloud: '+e.message)}
+}
+function initCloud(){
+ cloudUI();
+ if(!cfg.fb||!window.firebase)return;
+ try{
+  if(!firebase.apps.length)firebase.initializeApp(cfg.fb);
+  db=firebase.firestore();db.enablePersistence({synchronizeTabs:true}).catch(()=>{});
+  firebase.auth().onAuthStateChanged(u=>{user=u;cloudReady=false;cloudUI();if(u)pull()});
+ }catch(e){cst(e.message)}
+}
+$('cin').onclick=()=>firebase.auth().signInWithPopup(new firebase.auth.GoogleAuthProvider()).catch(e=>cst(e.code==='auth/unauthorized-domain'?'Add this site\'s domain in Firebase, Authentication, Settings, Authorized domains.':e.message));
+$('cout').onclick=()=>firebase.auth().signOut();
+initCloud();
 </script>
 </body>
 </html>

@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Chatbot Manager</title>
+<style>
+:root{--bg:#eef1f4;--card:#fff;--ink:#14202b;--mute:#5b6b7a;--line:#d5dce3;--go:#0b7a4b;--bad:#b3341e}
+@media(prefers-color-scheme:dark){:root{--bg:#10171d;--card:#18222b;--ink:#e8eef3;--mute:#93a3b1;--line:#2b3946;--go:#3ec98a;--bad:#ff8a73}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;padding:16px;max-width:640px;margin-inline:auto}
+h1{font-size:1.6rem;margin:8px 0 2px;letter-spacing:-.02em}p.sub{margin:0 0 16px;color:var(--mute)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-bottom:12px}
+label{display:block;font-size:.85rem;color:var(--mute);margin:10px 0 3px}
+input,textarea,select{width:100%;font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px}
+textarea{min-height:200px;resize:vertical}input[type=color]{height:44px;padding:4px}input[type=checkbox]{width:auto}
+button{font:inherit;font-weight:600;border:0;border-radius:8px;padding:10px 14px;background:var(--go);color:#fff;cursor:pointer}button.alt{background:transparent;color:var(--ink);border:1px solid var(--line)}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}:focus-visible{outline:3px solid var(--go);outline-offset:2px}
+#msg{color:var(--bad);min-height:1.4em}.meta{color:var(--mute);font-size:.88rem}
+</style></head><body>
+<h1>Chatbot Manager</h1><p class="sub">Create a bot for a client, paste their business info, embed it on their site.</p>
+<div id="msg" role="status"></div>
+
+<div class="card" id="setup" style="display:none">
+<label for="fb">Firebase web config (same one you use in Lead Finder)</label>
+<textarea id="fb" style="min-height:90px" placeholder='const firebaseConfig = { apiKey: "...", authDomain: "...", projectId: "...", appId: "..." };'></textarea>
+<div class="row"><button id="fbsave">Save config</button></div></div>
+
+<div class="card" id="auth" style="display:none"><div class="row" style="margin:0"><button id="cin">Sign in with Google</button></div></div>
+
+<div id="app" style="display:none">
+<div class="card"><label for="sel">Your bots</label><select id="sel"></select>
+<label for="name">Business name</label><input id="name" maxlength="80">
+<label for="greet">Greeting shown when chat opens</label><input id="greet" maxlength="160" placeholder="Hi! Ask me about our services, prices and hours.">
+<label for="tone">Tone</label><select id="tone"><option>friendly</option><option>professional</option><option>short and direct</option></select>
+<label for="wa">WhatsApp for hand-off (optional)</label><input id="wa" placeholder="+2547...">
+<label for="color">Widget color</label><input id="color" type="color" value="#0b7a4b">
+<label for="kb">Business information (services, prices, hours, location, payment, FAQs)</label>
+<textarea id="kb" maxlength="6000" placeholder="Services and prices:&#10;- Haircut KES 500&#10;Hours: Mon-Sat 8am-7pm&#10;Location: ...&#10;Payment: M-Pesa till ..."></textarea>
+<div class="meta">Anyone with the bot link can read this text, so leave out passwords and private details.</div>
+<label><input type="checkbox" id="paused"> Pause this bot (shows offline)</label>
+<div class="row"><button id="save">Save</button><button id="test" class="alt">Test chat</button><button id="del" class="alt">Delete</button></div></div>
+<div class="card" id="emb" style="display:none"><label for="snip">Paste this before &lt;/body&gt; on the client's site</label>
+<textarea id="snip" readonly style="min-height:70px"></textarea><div class="row"><button id="copy" class="alt">Copy</button></div></div>
+<div class="row"><button id="out" class="alt">Sign out</button></div></div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script>
+const $=id=>document.getElementById(id),say=t=>$('msg').textContent=t;
+let cfg={};try{cfg=JSON.parse(localStorage.getItem('lf_cfg'))||{}}catch(e){}
+let db,user,bots=[],cur='';
+function parseFb(t){const o={};for(const m of t.matchAll(/(\w+)\s*:\s*["']([^"']+)["']/g))o[m[1]]=m[2];if(o.apiKey)return o;try{const j=JSON.parse(t);if(j.apiKey)return j}catch(e){}return null}
+$('fbsave').onclick=()=>{const f=parseFb($('fb').value.trim());if(!f)return say('Could not read the config. Paste the whole block.');cfg.fb=f;localStorage.setItem('lf_cfg',JSON.stringify(cfg));location.reload()};
+const newId=()=>{const a=new Uint8Array(20);crypto.getRandomValues(a);return Array.from(a,x=>'abcdefghijklmnopqrstuvwxyz0123456789'[x%36]).join('')};
+const F=['name','greet','tone','wa','color','kb'];
+function fill(b){$('name').value=b.name||'';$('greet').value=b.greeting||'';$('tone').value=b.tone||'friendly';$('wa').value=b.whatsapp||'';$('color').value=b.color||'#0b7a4b';$('kb').value=b.kb||'';$('paused').checked=!!b.paused;
+ $('emb').style.display=cur?'':'none';$('snip').value=cur?`<script src="${location.origin}/widget.js" data-bot="${cur}" defer><\/script>`:''}
+function opts(){$('sel').innerHTML='<option value="">+ New bot</option>'+bots.map(b=>`<option value="${b.id}">${String(b.name||'Untitled').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}</option>`).join('');$('sel').value=cur}
+$('sel').onchange=()=>{cur=$('sel').value;fill(bots.find(b=>b.id===cur)||{})};
+async function load(){
+ const s=await db.collection('bots').where('owner','==',user.uid).get();
+ bots=s.docs.map(d=>({id:d.id,...d.data()}));if(!cur&&bots[0])cur=bots[0].id;opts();fill(bots.find(b=>b.id===cur)||{});
+}
+$('save').onclick=async()=>{
+ const name=$('name').value.trim();if(!name)return say('Enter the business name.');
+ const id=cur||newId();
+ const data={owner:user.uid,name,greeting:$('greet').value.trim(),tone:$('tone').value,whatsapp:$('wa').value.trim(),color:$('color').value,kb:$('kb').value.slice(0,6000),paused:$('paused').checked,upd:Date.now()};
+ try{await db.collection('bots').doc(id).set(data);cur=id;say('Saved.');await load()}catch(e){say(e.message)}
+};
+$('del').onclick=async()=>{if(!cur||!confirm('Delete this bot? Sites using it will lose the chat.'))return;try{await db.collection('bots').doc(cur).delete();cur='';await load()}catch(e){say(e.message)}};
+$('copy').onclick=()=>{navigator.clipboard?.writeText($('snip').value);say('Copied.')};
+$('test').onclick=()=>{if(!cur)return say('Save the bot first.');const s=document.createElement('script');s.src='/widget.js?'+Date.now();s.dataset.bot=cur;document.body.appendChild(s);say('Chat button appears at the bottom right.')};
+$('cin').onclick=()=>firebase.auth().signInWithPopup(new firebase.auth.GoogleAuthProvider()).catch(e=>say(e.code==='auth/unauthorized-domain'?'Add this domain under Firebase Authentication, Settings, Authorized domains.':e.message));
+$('out').onclick=()=>firebase.auth().signOut();
+if(!cfg.fb||!window.firebase){$('setup').style.display=''}
+else{firebase.initializeApp(cfg.fb);db=firebase.firestore();
+ firebase.auth().onAuthStateChanged(u=>{user=u;$('auth').style.display=u?'none':'';$('app').style.display=u?'':'none';if(u)load().catch(e=>say(e.message))})}
+</script></body></html>

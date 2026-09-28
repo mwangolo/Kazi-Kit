@@ -20,10 +20,19 @@ fetch(api+'?botId='+encodeURIComponent(bot)).then(r=>r.ok?r.json():Promise.rejec
  form{display:flex;gap:6px;padding:10px;border-top:1px solid #d5dce3}
  input{flex:1;border:1px solid #d5dce3;border-radius:8px;padding:10px;font-size:16px}
  form button{border:0;border-radius:8px;background:${c};color:#fff;padding:0 14px;font-weight:600;cursor:pointer}
+ .ft{padding:0 10px 10px;text-align:center}
+ .lk{background:none;border:0;color:${c};font-size:13px;text-decoration:underline;cursor:pointer}
+ .lf{display:none;flex:1;flex-direction:column;gap:8px;padding:14px;overflow-y:auto;border:0}
+ .p.l .lf{display:flex}.p.l .m,.p.l .ft,.p.l>form:not(.lf){display:none}
+ .lf input,.lf textarea{border:1px solid #d5dce3;border-radius:8px;padding:10px;font-size:16px;width:100%;font-family:inherit}
+ .lf small{color:#5b6b7a;font-size:12px}.lf .hp{position:absolute;left:-9999px}
+ .lf .r{display:flex;gap:8px}.lf .r button{flex:1;padding:10px;border-radius:8px;border:0;cursor:pointer;font-weight:600}
+ .lf .s{background:${c};color:#fff}.lf .x{background:#eef1f4;color:#14202b}
  </style>
  <button class="b" aria-label="Open chat">Chat with us</button>
  <div class="p" role="dialog" aria-label="Chat"><div class="t"><span></span><button aria-label="Close chat">×</button></div><div class="m" aria-live="polite"></div>
- <form><input placeholder="Type your question" maxlength="500" aria-label="Message"><button>Send</button></form></div>`;
+ <form><input placeholder="Type your question" maxlength="500" aria-label="Message"><button>Send</button></form><div class="ft"><button class="lk" type="button">Leave your number for a call back</button></div>
+ <form class="lf"><b>Leave your details</b><input name="n" placeholder="Your name" maxlength="80" required aria-label="Your name"><input name="p" type="tel" placeholder="Phone number" maxlength="20" required aria-label="Phone number"><textarea name="t" rows="3" placeholder="What do you need? (optional)" maxlength="300" aria-label="What do you need"></textarea><input class="hp" name="w" tabindex="-1" autocomplete="off" aria-hidden="true"><small>By sending, you agree the business may contact you about this enquiry.</small><small class="er" role="alert" style="color:#b3341e"></small><div class="r"><button type="button" class="x">Cancel</button><button class="s">Send</button></div></form></div>`;
  const $=q=>r.querySelector(q),btn=$('.b'),panel=$('.p'),list=$('.m'),inp=$('input');
  $('.t span').textContent=cfg.name||'Chat';
  const key='lfchat_'+bot;let hist=[];try{hist=JSON.parse(sessionStorage.getItem(key))||[]}catch(e){}
@@ -44,6 +53,20 @@ fetch(api+'?botId='+encodeURIComponent(bot)).then(r=>r.ok?r.json():Promise.rejec
   }catch(err){wait.textContent=err.message;hist.pop()}
   hist=hist.slice(-10);try{sessionStorage.setItem(key,JSON.stringify(hist))}catch(e){}
   list.scrollTop=list.scrollHeight;
+ };
+
+ $('.lk').onclick=()=>{panel.classList.add('l');$('.lf input').focus()};
+ $('.lf .x').onclick=()=>panel.classList.remove('l');
+ $('.lf').onsubmit=async e=>{
+  e.preventDefault();const f=e.target,er=$('.er'),name=f.n.value.trim(),ph=f.p.value.replace(/[^\d+]/g,'');
+  if(!name||ph.replace(/\D/g,'').length<9){er.textContent='Enter your name and a valid phone number.';return}
+  er.textContent='';const sb=$('.lf .s');sb.disabled=true;
+  try{
+   const res=await fetch(api,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'lead',botId:bot,name,phone:ph,note:f.t.value.trim(),website:f.w.value})});
+   const d=await res.json();if(!res.ok)throw new Error(d.error||'Something went wrong');
+   f.reset();panel.classList.remove('l');add('assistant','Thanks '+name+'! The team will contact you soon.');
+  }catch(err){er.textContent=err.message}
+  sb.disabled=false;
  };
 }).catch(()=>{});
 })();

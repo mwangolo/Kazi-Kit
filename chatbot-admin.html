@@ -9,6 +9,7 @@ h1{font-size:1.6rem;margin:8px 0 2px;letter-spacing:-.02em}p.sub{margin:0 0 16px
 label{display:block;font-size:.85rem;color:var(--mute);margin:10px 0 3px}
 input,textarea,select{width:100%;font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px}
 textarea{min-height:200px;resize:vertical}input[type=color]{height:44px;padding:4px}input[type=checkbox]{width:auto}
+a.b2{display:inline-block;font-weight:600;border:1px solid var(--line);border-radius:8px;padding:8px 12px;color:var(--ink);text-decoration:none}
 button{font:inherit;font-weight:600;border:0;border-radius:8px;padding:10px 14px;background:var(--go);color:#fff;cursor:pointer}button.alt{background:transparent;color:var(--ink);border:1px solid var(--line)}
 .row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}:focus-visible{outline:3px solid var(--go);outline-offset:2px}
 #msg{color:var(--bad);min-height:1.4em}.meta{color:var(--mute);font-size:.88rem}
@@ -37,6 +38,7 @@ button{font:inherit;font-weight:600;border:0;border-radius:8px;padding:10px 14px
 <div class="row"><button id="save">Save</button><button id="test" class="alt">Test chat</button><button id="del" class="alt">Delete</button></div></div>
 <div class="card" id="emb" style="display:none"><label for="snip">Paste this before &lt;/body&gt; on the client's site</label>
 <textarea id="snip" readonly style="min-height:70px"></textarea><div class="row"><button id="copy" class="alt">Copy</button></div></div>
+<div class="card" id="lc" style="display:none"><div class="row" style="margin:0;justify-content:space-between;align-items:center"><b>Leads from this chatbot</b><button id="rl" class="alt">Refresh</button></div><div id="leads" class="meta">Loading...</div></div>
 <div class="row"><button id="out" class="alt">Sign out</button></div></div>
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
@@ -52,9 +54,24 @@ $('fbsave').onclick=()=>{const f=parseFb($('fb').value.trim());if(!f)return say(
 const newId=()=>{const a=new Uint8Array(20);crypto.getRandomValues(a);return Array.from(a,x=>'abcdefghijklmnopqrstuvwxyz0123456789'[x%36]).join('')};
 const F=['name','greet','tone','wa','color','kb'];
 function fill(b){$('name').value=b.name||'';$('greet').value=b.greeting||'';$('tone').value=b.tone||'friendly';$('wa').value=b.whatsapp||'';$('color').value=b.color||'#0b7a4b';$('kb').value=b.kb||'';$('paused').checked=!!b.paused;
- $('emb').style.display=cur?'':'none';$('snip').value=cur?`<script src="${location.origin}/widget.js" data-bot="${cur}" defer><\/script>`:''}
+ loadLeads();$('emb').style.display=cur?'':'none';$('snip').value=cur?`<script src="${location.origin}/widget.js" data-bot="${cur}" defer><\/script>`:''}
 function opts(){$('sel').innerHTML='<option value="">+ New bot</option>'+bots.map(b=>`<option value="${b.id}">${String(b.name||'Untitled').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}</option>`).join('');$('sel').value=cur}
 $('sel').onchange=()=>{cur=$('sel').value;fill(bots.find(b=>b.id===cur)||{})};
+const esc=t=>String(t??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+async function loadLeads(){
+ $('lc').style.display=cur?'':'none';if(!cur)return;
+ const id=cur;$('leads').textContent='Loading...';
+ try{
+  const s=await db.collection('bots').doc(id).collection('leads').orderBy('created','desc').limit(50).get();
+  if(id!==cur)return;
+  $('leads').innerHTML=s.empty?'No leads yet. They appear here when visitors tap "Leave your number".':s.docs.map(d=>{
+   const l=d.data(),t=l.created?.toDate?l.created.toDate().toLocaleString():'';
+   let n=String(l.phone||'').replace(/\D/g,'');if(n.startsWith('0'))n='254'+n.slice(1);
+   const msg=encodeURIComponent('Hi '+l.name+', thanks for your enquiry. How can we help?');
+   return `<div style="border-top:1px solid var(--line);padding:10px 0"><b style="color:var(--ink)">${esc(l.name)}</b> · ${esc(t)}<br>${esc(l.phone)}${l.note?'<br>'+esc(l.note):''}<div class="row"><a class="b2" href="https://wa.me/${n}?text=${msg}" target="_blank" rel="noopener">WhatsApp</a><a class="b2" href="tel:${esc(l.phone)}">Call</a></div></div>`}).join('');
+ }catch(e){$('leads').textContent='Could not load leads: '+e.message}
+}
+$('rl').onclick=loadLeads;
 async function load(){
  const s=await db.collection('bots').where('owner','==',user.uid).get();
  bots=s.docs.map(d=>({id:d.id,...d.data()}));if(!cur&&bots[0])cur=bots[0].id;opts();fill(bots.find(b=>b.id===cur)||{});
